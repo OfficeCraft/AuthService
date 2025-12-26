@@ -1,0 +1,18 @@
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_authservice
+    restart: always
+    ports:
+      - "5400:5432"
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: securepassword
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_auth_data:
