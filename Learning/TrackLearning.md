@@ -176,6 +176,245 @@ This ensures:
 
 ---
 
+## 📅 26 December 2025
+
+### Today's Progress
+- ✅ Implemented user registration endpoint with password hashing
+- ✅ Added availability check API for username/email validation
+- ✅ Set up PostgreSQL database with Docker Compose
+- ✅ Created User model with avatar_url field
+- ✅ Configured Express body parser middleware (`express.json()`)
+- ✅ Implemented signup flow with real-time availability checking
+
+### Key Learnings
+
+#### 1. Express Body Parser Middleware
+
+**Problem:** `req.body` is undefined causing destructuring errors.
+
+**Error:**
+```
+TypeError: Cannot destructure property 'username' of 'req.body' as it is undefined.
+```
+
+**Root Cause:** Express doesn't parse JSON request bodies by default.
+
+**Solution:** Add `express.json()` middleware BEFORE route registration:
+
+```typescript
+import express from 'express';
+
+const app = express();
+
+// ✅ Must come BEFORE routes
+app.use(express.json());
+
+// Then register routes
+app.use('/api/auth', authRoutes);
+```
+
+**Key Point:** Middleware order matters! Body parser must execute before your route handlers can access `req.body`.
+
+---
+
+#### 2. PostgreSQL Docker Persistent Volumes
+
+**Problem:** After adding `avatar_url` column to `init.sql`, the column doesn't appear in the database.
+
+**Why doesn't PostgreSQL add the new avatar_url column after updating init.sql when using Docker Compose with a persistent volume?**
+
+**Answer:** Postgres Docker initialization behavior:
+
+- Files in `/docker-entrypoint-initdb.d/` (like `init.sql`)
+  👉 **run ONLY when the database is empty**
+
+- You are using a **named volume**:
+  ```yaml
+  volumes:
+    - postgres_auth_data:/var/lib/postgresql/data
+  ```
+
+- That volume **already contains your old database**
+
+**What happens:**
+1. First run: Volume is empty → `init.sql` executes → creates tables
+2. Second run: Volume has data → Docker skips `init.sql` → your changes are ignored
+
+**Solution Options:**
+
+**Option 1: Reset the database (dev environment)**
+```bash
+# Stop containers
+docker compose down
+
+# Remove the named volume
+docker volume rm postgres_auth_data
+
+# Start fresh
+docker compose up -d
+```
+
+**Option 2: Manual migration (production-safe)**
+```bash
+# Connect to running database
+docker exec -it <container_name> psql -U <username> -d <database>
+
+# Run ALTER statement
+ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500);
+```
+
+**Option 3: Use migration tools (best practice)**
+- Use tools like `node-pg-migrate`, `Flyway`, or `Liquibase`
+- Track schema changes with version control
+- Apply incremental migrations
+
+**Key Takeaway:** 
+- `init.sql` is for **initial setup only**, not schema updates
+- Use proper migration strategies for database changes
+- Docker volumes persist data even after container recreation
+
+---
+
+#### 3. Signup Flow Implementation
+
+**Architecture:**
+
+```
+┌─────────────────┐
+│   SignUp User   │
+│      Flow       │
+└────────┬────────┘
+         │
+         ├──────────────┐
+         │              │
+         ▼              ▼
+┌──────────────┐  ┌──────────────┐
+│   UserName   │  │    Email     │
+│    Input     │  │    Input     │
+└──────┬───────┘  └──────┬───────┘
+       │                 │
+       │                 │
+       └────────┬────────┘
+                │
+                ▼
+       ┌────────────────────┐
+       │   Delay of 400ms   │
+       │   to check if      │
+       │   availability     │
+       └────────┬───────────┘
+                │
+         ┌──────┴──────┐
+         │             │
+        Yes            No
+         │             │
+         ▼             └─────────────┐
+┌──────────────────────────────┐    │
+│  Check for email and         │    │
+│  username availability       │    │
+│  via API call                │    │
+│  POST /api/auth/check-       │    │
+│       availability           │    │
+└──────────────────────────────┘    │
+                                    │
+                                    ▼
+                            ┌──────────────┐
+                            │  Keep waiting│
+                            │  for user    │
+                            │  input       │
+                            └──────────────┘
+```
+
+**Implementation Details:**
+
+1. **Debounced Availability Check:**
+   - 400ms delay prevents API spam
+   - Only checks after user stops typing
+   - Provides real-time feedback
+
+2. **API Endpoint:** `POST /api/auth/check-availability`
+   ```typescript
+   // Request
+   {
+     "username": "john_doe",
+     "email": "john@example.com"
+   }
+   
+   // Response
+   {
+     "usernameAvailable": true,
+     "emailAvailable": false
+   }
+   ```
+
+3. **Controller Implementation:**
+   ```typescript
+   export async function availabilityCheckController(req: Request, res: Response) {
+     const { username, email } = req.body || {};
+     
+     // Validation
+     if (!username && !email) {
+       return res.status(400).json({ 
+         error: "Bad request", 
+         message: "Username or email is required"
+       });
+     }
+     
+     // Check database
+     const result = await checkForExistingUserService(username, email);
+     res.status(200).json(result);
+   }
+   ```
+
+---
+
+#### 4. Database Schema - User Model
+
+**Added avatar_url field:**
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    avatar_url VARCHAR(500),  -- NEW FIELD
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Purpose:**
+- Store user profile picture URLs
+- Optional field (can be NULL)
+- Supports CDN/cloud storage URLs (up to 500 chars)
+
+---
+
+### 🎯 Today's Challenges & Solutions
+
+**Challenge 1:** `req.body` undefined error
+- **Solution:** Added `express.json()` middleware
+
+**Challenge 2:** New database column not appearing
+- **Solution:** Learned about Docker volume persistence, reset database for dev
+
+**Challenge 3:** Real-time validation UX
+- **Solution:** Implemented debounced availability check with 400ms delay
+
+---
+
+### 📝 Notes for Future
+
+- Consider rate limiting for availability check endpoint
+- Add email validation (format check)
+- Implement password strength requirements
+- Add CORS configuration for frontend integration
+- Set up database migration system for production
+- Add comprehensive error handling and logging
+- Consider caching frequently checked usernames/emails
+
+---
+
 ## Template for Next Day
 
 ```markdown
