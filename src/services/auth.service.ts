@@ -1,4 +1,4 @@
-import { insertUser, getUserByEmail, getUserByUsername } from "../models/user.model";
+import { insertUser, getUserByEmail, getUserByUsername, getUserById } from "../models/user.model";
 import { User } from "../models/user.types";
 import { hashPassword, comparePassword } from "../utils/hasher";
 
@@ -56,3 +56,7 @@ export async function LoginUserService(username: string, password: string) {
     return user.id;
 }
 
+export async function getUserByIdService(userId: string): Promise<User | null> {
+    const user: User | null = await getUserById(userId);
+    return user;
+}

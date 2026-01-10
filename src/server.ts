@@ -1,10 +1,21 @@
 import express from 'express';
 import cookieparser from 'cookie-parser';
+import cors from 'cors';
+
 import { env } from './config/env';
 import authRoutes from './routes/auth.routes';
 import healthRoutes from './routes/health.routes';
 import { checkForConnectedToDB } from './models/user.model';
 const app = express();
+
+/* cors middleware */
+app.use(cors({
+    origin: env.FRONTEND_URL,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+}));
+
 
 //middleware for parsing json bodies
 app.use(express.json());

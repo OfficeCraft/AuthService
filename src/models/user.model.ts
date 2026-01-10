@@ -25,6 +25,14 @@ export async function getUserByUsername(username: string): Promise<User | null> 
     return result.rows[0] ?? null;
 }
 
+export async function getUserById(userId: string): Promise<User | null> {
+    const result = await db.query<User>(
+        'SELECT id, username, email, avatar_url FROM users WHERE id = $1',
+        [userId]
+    );
+    return result.rows[0] ?? null;
+}
+
 export async function checkForConnectedToDB(): Promise<void> {
     await db.query('SELECT 1');
 }

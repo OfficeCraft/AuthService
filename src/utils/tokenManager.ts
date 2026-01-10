@@ -6,8 +6,18 @@ export function generateTokenAndsetCookie(userId: string): { token: string; cook
 	const cookieOptions = {
 		httpOnly: true,
 		maxAge: 15 * 24 * 60 * 60 * 1000, // 15 days
-		sameSite: 'strict' as const,
+		secure: false, // Set to true if using HTTPS
+		sameSite: 'lax' as const,
 	};
 	return { token, cookieOptions };
+}
+
+export function verifyToken(token: string): { userId: string } | null {
+	try {
+		const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+		return { userId: decoded.userId };
+	} catch (error) {
+		return null;
+	}
 }
 

@@ -20,4 +20,5 @@ export const env = {
         PASSWORD: requireEnvVariable('DB_PASSWORD'),
         NAME: requireEnvVariable('DB_NAME'),
     },
+    FRONTEND_URL: requireEnvVariable('FRONTEND_URL'),
 };
